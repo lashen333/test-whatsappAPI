@@ -5,70 +5,73 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
-  const body = await req.json();
+  try {
+    const body = await req.json();
 
-  // Respond fast to WhatsApp
-  const res = NextResponse.json({ ok: true }, { status: 200 });
+    const value = body?.entry?.[0]?.changes?.[0]?.value;
+    const msg = value?.messages?.[0];
 
-  // Process after response (good enough for MVP)
-  // For high volume later, we’ll add a queue.
-  queueMicrotask(async () => {
-    try {
-      // WhatsApp payload structure: entry -> changes -> value
-      const change = body?.entry?.[0]?.changes?.[0]?.value;
-      const messages = change?.messages;
-      if (!messages?.length) return;
+    if (!msg) return NextResponse.json({ ok: true, note: "no message" }, { status: 200 });
 
-      const msg = messages[0];
-      const waId = msg.from; // sender wa_id
-      const waMessageId = msg.id;
-      const msgType = msg.type || "text";
-      const textBody = msg?.text?.body || null;
+    const waId = msg.from;
+    const waMessageId = msg.id;
+    const msgType = msg.type || "text";
+    const textBody = msg?.text?.body ?? null;
 
-      // Referral/ad context (if present)
-      const referral = msg?.referral || change?.referral || null;
-      const source = referral ? "meta_ad" : "unknown";
+    // 1) conversation upsert
+    const { data: conv, error: convErr } = await supabaseAdmin
+      .from("wa_conversations")
+      .upsert(
+        {
+          wa_id: waId,
+          source: "unknown",
+          last_message_at: new Date().toISOString(),
+        },
+        { onConflict: "wa_id" }
+      )
+      .select("id")
+      .single();
 
-      // 1) Upsert conversation
-      const { data: conv, error: convErr } = await supabaseAdmin
-        .from("wa_conversations")
-        .upsert(
-          {
-            wa_id: waId,
-            source,
-            ad_context: referral ? referral : null,
-            last_message_at: new Date().toISOString(),
-          },
-          { onConflict: "wa_id" }
-        )
-        .select("id")
-        .single();
+    if (convErr) {
+      console.error("❌ convErr:", convErr);
+      return NextResponse.json({ ok: false, where: "conv" }, { status: 200 });
+    }
 
-      if (convErr) throw convErr;
+    if (!conv?.id) {
+      console.error("❌ conv missing id:", conv);
+      return NextResponse.json({ ok: false, where: "conv-id" }, { status: 200 });
+    }
 
-      // 2) Insert message
-      const { error: msgErr } = await supabaseAdmin.from("wa_messages").insert({
+    // 2) message insert
+    const { data: inserted, error: msgErr } = await supabaseAdmin
+      .from("wa_messages")
+      .insert({
         conversation_id: conv.id,
         wa_message_id: waMessageId,
         direction: "in",
         msg_type: msgType,
         text_body: textBody,
         payload: msg,
+      })
+      .select("id")
+      .single();
+
+    if (msgErr) {
+      console.error("❌ msgErr:", msgErr);
+      console.error("❌ attempted insert:", {
+        conversation_id: conv.id,
+        wa_message_id: waMessageId,
+        direction: "in",
+        msg_type: msgType,
+        text_body: textBody,
       });
-
-      if (msgErr) throw msgErr;
-
-      // 3) (Optional) update last_message_at (already in upsert, but safe)
-      await supabaseAdmin
-        .from("wa_conversations")
-        .update({ last_message_at: new Date().toISOString() })
-        .eq("id", conv.id);
-
-      console.log("✅ Saved message for wa_id:", waId);
-    } catch (e) {
-      console.error("❌ Webhook save error:", e);
+      return NextResponse.json({ ok: false, where: "msg" }, { status: 200 });
     }
-  });
 
-  return res;
+    console.log("✅ inserted message id:", inserted?.id);
+    return NextResponse.json({ ok: true }, { status: 200 });
+  } catch (e) {
+    console.error("❌ webhook error:", e);
+    return NextResponse.json({ ok: true }, { status: 200 });
+  }
 }
