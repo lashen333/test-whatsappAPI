@@ -1,4 +1,4 @@
-// src\app\api\outcomes\route.ts
+// src\app\api\whatsapp\outcomes\route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/src/lib/supabaseAdmin";
 
