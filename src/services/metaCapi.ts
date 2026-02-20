@@ -19,7 +19,7 @@ type SendCapiArgs = {
   eventName: MetaEventName;
   eventId: string;            // unique id (dedupe)
   eventTime: number;          // unix seconds
-  actionSource?: "system";
+  actionSource?: "chat" | "website" | "app" | "phone_call" | "email" | "other" | "physical_store" ; 
   phoneE164?: string | null;  // +9477... if you have; or raw digits is ok but be consistent
   value?: number | null;
   currency?: string | null;
@@ -46,7 +46,7 @@ export async function sendMetaCapiEvent(args: SendCapiArgs) {
         event_name: args.eventName,
         event_time: args.eventTime,
         event_id: args.eventId,
-        action_source: args.actionSource ?? "system",
+        action_source: args.actionSource ?? "chat",
         user_data,
       },
     ],
@@ -81,4 +81,11 @@ export async function sendMetaCapiEvent(args: SendCapiArgs) {
   }
 
   return json;
+
+  
+
+
+
 }
+
+

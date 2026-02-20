@@ -1,4 +1,4 @@
-// src/app/api/whatsapp/outcomes/route.ts
+// src\app\api\whatsapp\outcomes\route.ts
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { supabaseAdmin } from "@/src/lib/supabaseAdmin";
@@ -73,6 +73,7 @@ export async function POST(req: NextRequest) {
         eventName,
         eventId,
         eventTime,
+        actionSource: "chat",
         phoneE164: phoneForMatch,
         value: value != null ? Number(value) : null,
         currency: currency ?? null,
