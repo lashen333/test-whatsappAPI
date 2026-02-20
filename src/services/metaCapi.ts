@@ -61,7 +61,12 @@ export async function sendMetaCapiEvent(args: SendCapiArgs) {
   }
 
   // Optional: test code for Events Manager "Test Events"
-  const testCode = args.testEventCode ?? process.env.META_TEST_EVENT_CODE;
+  const testCode = args.testEventCode ?? process.env.META_TEST_EVENT_CODE ?? null;
+
+  // ✅ add debug logs (will appear in Vercel logs)
+  console.log("🧪 META_TEST_EVENT_CODE (env):", process.env.META_TEST_EVENT_CODE ? "SET" : "NOT_SET");
+  console.log("🧪 Using test_event_code:", testCode ?? "(none)");
+  
   if (testCode) payload.test_event_code = testCode;
 
   const url = `https://graph.facebook.com/v20.0/${pixelId}/events?access_token=${accessToken}`;
